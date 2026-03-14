@@ -32,7 +32,7 @@ MASLD_HF_AKI/
 │   │   └── cohort_eicu.py           # eICU cohort construction
 │   └── 03_analysis/
 │       ├── 01_descriptive_psm.py    # Baseline statistics + PSM
-│       ├── 02_main_regression.py # Primary regression analysis
+│       ├── 02_main_regression.py    # Primary regression analysis
 │       ├── 03_rcs_analysis.py       # Restricted cubic spline
 │       ├── 04_subgroup_mediation.py # Subgroup + mediation analysis
 │       ├── 05_outcomes_finegray.py  # Competing risk + nomogram
