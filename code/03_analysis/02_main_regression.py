@@ -32,6 +32,8 @@ df_raw['log_fib4']   = np.log1p(df_raw['fib4'])
 df_raw['log_nlr']    = np.log1p(df_raw['nlr'])
 df_raw['log_alt']    = np.log1p(df_raw['alt_final'])
 
+
+
 # FIB-4分层
 df_raw['fib4_group'] = pd.cut(
     df_raw['fib4'],
@@ -81,6 +83,22 @@ COVARS_BASE = [
 COVARS_FULL = COVARS_BASE + ['albumin_final', 'log_fib4', 'log_nlr', 'bmi']
 
 BASE_COVARS = COVARS_BASE  # 保持后续代码兼容
+
+# ── 插入验证代码 ────────────────────────────────────────
+print("=== 协变量缺失情况（Model A，n=11,517）===")
+check_cols = COVARS_BASE + ['aki']
+print(df_raw[check_cols].isnull().sum().to_string())
+print(f"\n任一协变量缺失的总人数: {df_raw[check_cols].isnull().any(axis=1).sum()}")
+
+print("\n=== FIB-4原始成分缺失情况（MASLD组，n=1,114）===")
+masld = df_raw[df_raw['masld_main'] == 1]
+fib4_components = ['age', 'ast_final', 'alt_final', 'platelet_final']
+for col in fib4_components:
+    if col in masld.columns:
+        print(f"  {col}: {masld[col].isnull().sum()} 缺失")
+print(f"  fib4直接缺失: {masld['fib4'].isnull().sum()}")
+print(f"  fib4_group缺失(即NaN): {masld['fib4_group'].isna().sum()}")
+# ── 验证代码结束 ────────────────────────────────────────
 
 def avail(df, cols):
     return [c for c in cols if c in df.columns]
@@ -182,14 +200,17 @@ df_raw.loc[df_raw['masld_fib4_low']==1,  'fib4_grp_4cat'] = 0
 df_raw.loc[df_raw['masld_fib4_mid']==1,  'fib4_grp_4cat'] = 1
 df_raw.loc[df_raw['masld_fib4_high']==1, 'fib4_grp_4cat'] = 2
 
-fib4_rows = []
-for g in [-1, 0, 1, 2]:
-    sub = df_raw[df_raw['fib4_grp_4cat']==g]
-    aki_r = sub['aki'].mean() * 100 if 'aki' in sub else np.nan
-    n = len(sub)
-    lbl = grp_labels[g]
-    print(f"  {lbl}: N={n}  AKI率={aki_r:.1f}%")
-    fib4_rows.append({'Group': lbl, 'N': n, 'AKI rate (%)': round(aki_r, 1)})
+# fib4_rows = []
+# for g in [-1, 0, 1, 2]:
+#     if g == -1:
+#         sub = df_m[df_m['fib4_grp_4cat'] == -1]  # 用dropna后的df_m，N=10436
+#     else:
+#         sub = df_raw[df_raw['fib4_grp_4cat'] == g]  # MASLD三组用df_raw
+#     aki_r = sub['aki'].mean() * 100 if 'aki' in sub else np.nan
+#     n = len(sub)
+#     lbl = grp_labels[g]
+#     print(f"  {lbl}: N={n}  AKI率={aki_r:.1f}%")
+#     fib4_rows.append({'Group': lbl, 'N': n, 'AKI rate (%)': round(aki_r, 1)})
 
 # 多因素回归（FIB-4三哑变量，参照非MASLD）
 print("\n  多因素Logistic（参照：非MASLD）：")
@@ -201,6 +222,24 @@ formula_fib4 = ('aki ~ masld_fib4_low + masld_fib4_mid + masld_fib4_high + '
 df_m = clean(df_raw, ['aki','masld_fib4_low','masld_fib4_mid','masld_fib4_high']
              + covs_no_fib4)
 df_m = df_m[df_m['aki'].notna()]
+df_m['fib4_grp_4cat'] = df_raw.loc[df_m.index, 'fib4_grp_4cat']  # 同步分组标签
+
+fib4_rows = []
+for g in [-1, 0, 1, 2]:
+    if g == -1:
+        sub = df_m[df_m['fib4_grp_4cat'] == -1]  # 用dropna后的df_m，N=10436
+    else:
+        sub = df_raw[df_raw['fib4_grp_4cat'] == g]  # MASLD三组用df_raw
+    aki_r = sub['aki'].mean() * 100 if 'aki' in sub else np.nan
+    n = len(sub)
+    lbl = grp_labels[g]
+    print(f"  {lbl}: N={n}  AKI率={aki_r:.1f}%")
+    fib4_rows.append({'Group': lbl, 'N': n, 'AKI rate (%)': round(aki_r, 1)})
+
+# ↓ 插入这两行验证代码
+print(f"  Model A 总样本: {len(df_m)}")
+print(f"  Non-MASLD N (dropna后): {(df_m['fib4_grp_4cat']==-1).sum()}")
+
 m_fib4 = smf.logit(formula_fib4, data=df_m).fit(disp=0)
 
 for var, label in [

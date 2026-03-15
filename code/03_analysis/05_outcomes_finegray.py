@@ -23,8 +23,10 @@ warnings.filterwarnings('ignore')
 PROJECT = r"C:\Users\Edward\Desktop\SCI\MASLD_HF_DiureticEfficiency"
 RAW     = f"{PROJECT}/data/raw/cohort_mimic_raw.csv"
 OUT_TAB = f"{PROJECT}/output/tables/table6_finegray.csv"
-OUT_CIF = f"{PROJECT}/output/figures/fig_cumulative_incidence.png"
-OUT_NOM = f"{PROJECT}/output/figures/fig_nomogram.png"
+OUT_CIF     = f"{PROJECT}/output/figures/fig_cumulative_incidence.png"
+OUT_CIF_PDF = f"{PROJECT}/output/figures/fig_cumulative_incidence.pdf"
+OUT_NOM     = f"{PROJECT}/output/figures/fig_nomogram.png"
+OUT_NOM_PDF = f"{PROJECT}/output/figures/fig_nomogram.pdf"
 
 df = pd.read_csv(RAW)
 df['aki']        = df['aki_flag']
@@ -46,8 +48,18 @@ print("=" * 55)
 print("  累积发生率曲线（Aalen-Johansen）")
 print("=" * 55)
 
+# df_masld = df[df['masld_main'] == 1].copy()
+# df_masld = df_masld.dropna(subset=['los_days', 'aki', 'hospital_expire_flag', 'fib4_high'])
+
+# 第38-39行：修正，确保FIB-4缺失者被明确排除并记录
 df_masld = df[df['masld_main'] == 1].copy()
-df_masld = df_masld.dropna(subset=['los_days', 'aki', 'hospital_expire_flag', 'fib4_high'])
+n_before = len(df_masld)
+df_masld = df_masld.dropna(subset=['los_days', 'aki', 'hospital_expire_flag', 'fib4'])
+df_masld['fib4_high'] = (df_masld['fib4'] >= 2.67).astype(int)  # 移到dropna之后
+n_after = len(df_masld)
+print(f"  MASLD总数: {n_before}, FIB-4缺失排除: {n_before - n_after}, 进入分析: {n_after}")
+# 预期输出: MASLD总数: 1114, FIB-4缺失排除: 77, 进入分析: 1037
+# FIB-4<2.67组: 147+248=395（非472）
 
 # 构建竞争风险事件编码
 # 0=censored, 1=AKI, 2=death without AKI
@@ -86,7 +98,7 @@ lr = logrank_test(
 )
 p_s = "<0.001" if lr.p_value < 0.001 else f"{lr.p_value:.3f}"
 print(f"  Log-rank test P={p_s}")
-ax.text(0.98, 0.05, f'Log-rank P={p_s}',
+ax.text(0.98, 0.05, f'Log-rank P < 0.001' if lr.p_value < 0.001 else f'Log-rank P = {lr.p_value:.3f}',
         transform=ax.transAxes, fontsize=9,
         ha='right', va='bottom', color='black')
 
@@ -99,8 +111,10 @@ ax.set_xlim(0, df_masld['time'].quantile(0.95))
 ax.set_ylim(0, 1)
 plt.tight_layout()
 plt.savefig(OUT_CIF, dpi=300, bbox_inches='tight')
+plt.savefig(OUT_CIF_PDF, format='pdf', bbox_inches='tight', facecolor='white')
 plt.close()
 print(f"  CIF图已保存: {OUT_CIF}")
+print(f"  CIF PDF已保存: {OUT_CIF_PDF}")
 
 # ============================================================
 # PART B：Nomogram（仅用显著变量：egfr, fib4, albumin_final）
@@ -222,8 +236,10 @@ ax_prob.text(-1, 0.5, 'Predicted\nAKI Prob.', ha='right', fontsize=9,
 axes[0].set_title('Nomogram for Predicting AKI Risk in MASLD Patients with ADHF',
                   fontsize=11, pad=10)
 plt.savefig(OUT_NOM, dpi=300, bbox_inches='tight')
+plt.savefig(OUT_NOM_PDF, format='pdf', bbox_inches='tight', facecolor='white')
 plt.close()
 print(f"  Nomogram已保存: {OUT_NOM}")
+print(f"  Nomogram PDF已保存: {OUT_NOM_PDF}")
 
 # ============================================================
 # PART C：Calibration Plot
@@ -266,9 +282,12 @@ ax.legend(fontsize=9)
 ax.set_xlim(0, 1)
 ax.set_ylim(0, 1)
 
-OUT_CAL = f"{PROJECT}/output/figures/fig_calibration.png"
+OUT_CAL     = f"{PROJECT}/output/figures/fig_calibration.png"
+OUT_CAL_PDF = f"{PROJECT}/output/figures/fig_calibration.pdf"
 plt.tight_layout()
 plt.savefig(OUT_CAL, dpi=300, bbox_inches='tight')
+plt.savefig(OUT_CAL_PDF, format='pdf', bbox_inches='tight', facecolor='white')
 plt.close()
 print(f"  Calibration plot已保存: {OUT_CAL}")
+print(f"  Calibration PDF已保存: {OUT_CAL_PDF}")
 print("\n所有分析完成！下一步：整理论文表格和图片。")
